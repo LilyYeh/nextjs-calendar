@@ -1,0 +1,370 @@
+.container {
+  min-height: 100vh;
+}
+
+.addCalendar {
+	position: fixed;
+	top: 0;
+	width: 100%;
+	background: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 10px;
+	z-index: 99;
+	box-shadow: 2px 2px 2px 1px rgb(0 0 0 / 7%);
+	/*&:after {
+		content: "";
+		width: 100px;
+		height: 1px;
+		border-bottom: 1px solid grey;
+	}*/
+	.formData {
+		margin: 0 10px;
+	}
+	.addBtn {
+		background: #3e6b7e;
+		color: white;
+		display: flex;
+		align-items: center;
+		font-size: 18px;
+		padding: 4px 7px;
+	}
+}
+
+.calendarContainer {
+	width: 490px;
+	margin: 68.89px auto 0;
+	.calendar {
+		margin-bottom: 20px;
+		.head {
+			display: flex;
+			align-items: center;
+			margin-bottom: 3px;
+			z-index: 1;
+			h3 {
+				flex: 1;
+				.year {
+					color: #b53f45;
+				}
+			}
+			.deleteBtn {
+				background: #fff;
+				color: #b53f45;
+				padding: 0px 2px;
+				display: flex;
+				align-items: center;
+				svg {
+					width: 20px;
+				}
+			}
+		}
+		table {
+			margin-bottom: 3px;
+			tr {
+				th, td {
+					width: 70px;
+					border: 1px solid #000000;
+				}
+				th {
+					padding: 10px;
+					background: #b53f45;
+					color: white;
+					font-size: 16px;
+					line-height: 16px;
+				}
+				td.item {
+					vertical-align: baseline;
+					text-align: center;
+					max-height: 61.5px;
+					height: 45.5px;
+					cursor: pointer;
+					position: relative;
+					&.active {
+						z-index: 4;
+						background: white;
+					}
+					.date {
+						display: block;
+						margin: 5px 0;
+					}
+					.text {
+						margin-bottom: 2px;
+					}
+					.date, .text {
+						color: black;
+						font-size: 12px;
+						font-weight: 500;
+						cursor: pointer;
+						&[color=red] {
+							color: #b53f45;
+						}
+						&[color=red2] {
+							color: red;
+						}
+						&[color=black]{
+							color: #000000;
+						}
+						&[color=blue]{
+							color: #366dae;
+						}
+						&[color=yellow]{
+							color: #fb9f03;
+						}
+						&[color=green]{
+							color: #3e6b71;
+						}
+						&[color=purple]{
+							color: #3f51b5;
+						}
+						&.circle {
+							position: relative;
+							&:before {
+								content: "";
+								border-radius: 50%;
+								border: 2px solid red;
+								display: block;
+								position: absolute;
+								width: 17px;
+								height: 17px;
+								left: calc(50% - 10.5px);
+								top: -3.5px;
+							}
+						}
+					}
+
+					.icon {
+						margin-top: -3px;
+						font-size: 18px;
+					}
+				}
+			}
+		}
+		ul.annotation {
+			display: flex;
+			justify-content: end;
+			li {
+				margin-left: 10px;
+				.clickInsert{
+					font-size: 12px;
+					color: #c6c6c6;
+					margin-left: 3px;
+					cursor: pointer;
+					input, input:focus {
+						outline: none;
+						border: none;
+						caret-color: black;
+						color: #3c3b3b;
+						width: 53px;
+					}
+					input:focus::placeholder {
+						color: transparent;
+					}
+				}
+				.word {
+					font-size: 12px;
+					color: #3c3b3b;
+					margin-left: 3px;
+				}
+			}
+		}
+		[icon=Rabbit]:before {
+			content: "🐰"
+		}
+		[icon=Dragon]:before {
+			content: "🦖"
+		}
+		[icon=Dog]:before {
+			content: "🐶"
+		}
+		[icon=Bear]:before {
+			content: "🐻"
+		}
+		[icon=Vacation]:before {
+			content: "休假";
+			font-size: 12px;
+			color: red;
+		}
+	}
+}
+
+.overlay {
+	visibility: hidden;
+	position: fixed;
+	z-index: 3;
+	top: 150%;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background-color: rgba(0, 0, 0, 0.5);
+
+	&.active {
+		cursor: pointer;
+		visibility: visible;
+		top: 0;
+	}
+
+	.modal {
+		background: white;
+		position: absolute;
+		top: 300px;
+		left: 400px;
+		padding: 10px;
+		cursor: auto;
+		.formData {
+			display: flex;
+			align-items: center;
+			margin-bottom: 5px;
+			&.borderBottom {
+				padding-bottom: 5px;
+				border-bottom: 1px solid #c6c6c6;
+			}
+			label {
+				font-size: 12px;
+			}
+			.color {
+				cursor: pointer;
+				margin-left: 5px;
+				.colorBlock {
+					width: 15px;
+					height: 15px;
+					display: inline-block;
+					margin-right: 5px;
+				}
+				.red {
+					background: #b53f45;
+				}
+				.red2 {
+					background: red;
+				}
+				.black {
+					background: black;
+				}
+				.blue {
+					background: #366dae;
+				}
+				.yellow {
+					background: #fb9f03;
+				}
+				.green {
+					background: #3e6b71;
+				}
+				.purple {
+					background: #3f51b5;
+				}
+				.circle {
+					border-radius: 50%;
+					border: 2px solid red;
+				}
+			}
+			input[type=text] {
+				font-size: 12px;
+				width: 100px;
+				height: 20px;
+				margin-left: 5px;
+			}
+			.activityIcon {
+				margin-left: 3px;
+				font-size: 22px;
+				cursor: pointer;
+			}
+			.radioGroup {
+				display: flex;
+				align-items: center;
+				margin-left: 5px;
+				margin-right: 5px;
+				input[type=radio] {
+					accent-color: black;
+					margin-right: 2px;
+				}
+			}
+		}
+	}
+}
+
+.leftColumn {
+	&.active {
+		display: block;
+	}
+	display: none;
+	position: fixed;
+	top: 61.89px;
+	left: 200px;
+	width: 200px;
+	height: 500px;
+	overflow-y: scroll;
+	padding: 10px;
+	background: #f1f1f1;
+	text-align: center;
+	border-radius: 5px;
+	.collapseAll {
+		cursor: pointer;
+		>.iconCollapse, >.iconExpand {
+			width: 16px;
+			position: sticky;
+			top: 0;
+			display: none;
+			&.active {
+				display: block;
+			}
+		}
+	}
+	.year {
+		user-select:none; /* standard syntax */
+		-webkit-user-select:none; /* for Chrome、Safari */
+		-moz-user-select:none; /* for Mozilla、Firefox */
+		> li {
+			margin-bottom: 15px;
+			h3 {
+				color: #b53f45;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				.iconCollapse, .iconExpand {
+					width: 16px;
+					margin-right: 10px;
+					display: none;
+					&.active {
+						display: block;
+					}
+				}
+			}
+			.month {
+				&.active{
+					display: block;
+				}
+				display: none;
+				margin-left: 42%;
+				width: fit-content;
+				> li {
+					cursor: pointer;
+					display: flex;
+					align-items: center;
+					justify-content: left;
+					//color: #3c3b3b;
+					.faCalendar {
+						display: block;
+						width: 12px;
+						margin-right: 5px;
+					}
+				}
+			}
+		}
+	}
+}
+
+.leftColumn::-webkit-scrollbar {
+	width: 16px;
+}
+
+.leftColumn::-webkit-scrollbar-thumb {
+	background-color: #b53f458f;
+	border-radius: 10px;
+	border: 5px solid #f1f1f1;
+}
+.leftColumn::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	border-radius: 5px;
+	margin: 15px;
+}
