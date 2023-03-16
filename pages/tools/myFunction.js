@@ -12,3 +12,7 @@ export function dateID(yearMonth, date) {
 export function calendarID(dateID) {
 	return dateID.substring(0, 6);
 }
+
+export function getDate(dateID) {
+	return dateID.substring(6);
+}

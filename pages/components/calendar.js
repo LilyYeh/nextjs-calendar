@@ -11,6 +11,23 @@ export default function calendar({calendar, activities, activityType, removeCale
 		openSetting(tdElement, tdElement.offsetLeft, tdElement.offsetTop, tdElement.offsetWidth, tdElement.offsetHeight);
 	}
 
+	const setAnnotation = async (icon, value) => {
+		await apiUpdateCalendar({id:calendar.id, annotation:{icon:icon, value:value}})
+	}
+
+	const apiUpdateCalendar = async (data) => {
+		const apiUrlEndpoint = `/api/calendars/update`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				data: data
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
+
 	const myVaStyle = useMemo(() => {
 		if(vaStyle == 1){
 			return {
@@ -82,7 +99,8 @@ export default function calendar({calendar, activities, activityType, removeCale
 									<span className={styles.clickInsert}>
 										<input type="text" placeholder="點擊輸入" onChange={(e) => {
 											let resize = (e.target.value.length + 1.5) * 10;
-											e.target.style.width = (resize < 100 ? (resize > 50 ? resize : 50) : 100 ) + 'px'
+											e.target.style.width = (resize < 100 ? (resize > 50 ? resize : 50) : 100 ) + 'px';
+											setAnnotation(icon.icon, e.target.value);
 										}}/>
 									</span> : <span className={styles.word}>{icon.value}</span>
 							}</li>

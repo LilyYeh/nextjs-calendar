@@ -142,7 +142,7 @@
 		}
 		ul.annotation {
 			display: flex;
-			justify-content: end;
+			justify-content: flex-end;
 			li {
 				margin-left: 10px;
 				.clickInsert{

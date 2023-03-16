@@ -2,12 +2,12 @@ import Head from 'next/head';
 import styles from '../styles/Home.module.scss';
 import {useEffect, useState, useMemo, createRef} from 'react';
 import {useImmer} from 'use-immer';
-import {textConvert, dateID, calendarID} from "./tools/myFunction";
+import {textConvert, dateID, calendarID, getDate} from "./tools/myFunction";
 import Calendar from "./components/calendar";
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faCalendarDays, faCalendar, faPlusSquare} from '@fortawesome/free-solid-svg-icons';
 import {faMinusSquare} from '@fortawesome/free-regular-svg-icons';
-import calendar from "./components/calendar";
+
 export default function Home() {
 	const date = new Date;
 	const yearToday = date.getFullYear();
@@ -27,6 +27,7 @@ export default function Home() {
 	const [myDateID, setMyDateID] = useState(null);
 	const activityTypeText = 1;
 	const activityTypeIcon = 2;
+	const activityTextStyle = 'blue';
 	const iconValueDefault = {Dragon:'沛辰休假', Dog:'', Bear:'', Rabbit:'莉莉休假'};
 	const [activities, setActivities] = useImmer({});
 	const [vacationStyle, setVacationStyle] = useState(2);
@@ -50,24 +51,27 @@ export default function Home() {
 	}
 	const datePicker = useMemo(setDatePicker,[]);
 
-	const addCalendar = () => {
+	const addCalendar = async () => {
 		if(calendarList[newCalendarID]) {
 			//scroll to calendar
 			scrollToCalendar(calendarList[newCalendarID].ref);
 			return;
 		}
-		let calendar = createCalendar(selectedYear,selectedMonth);
+		const calendarData = createCalendar(selectedYear,selectedMonth);
+		const calendar = calendarData.calendar, events= calendarData.events
 		setCalendarList({
 			...calendarList,
 			[calendar.id]: calendar
 		});
 		setAction('addCalendar');
+		await setDefaultActivities(events);
+		await apiCreateCalendar({id:calendar.id, year:calendar.year, month:calendar.month, annotation:JSON.stringify(calendar.annotation)});
 	}
 	const createCalendar = (year, month) => {
 		const calendarID = year.toString() + (month >=10 ? '' : 0 ) + month.toString();
 		const theFirstDayOfThisMonth = new Date(year, month-1, 1).getDay();
 		const lastDateOfSelectedMonth = new Date(year, month, 0).getDate();
-		const calendar = [];
+		const calendar = [], events = [];
 		let week = [], date = 1;
 		// 一個月曆最多7*6=42個td
 		for(let i=0; i<=42; i++) {
@@ -78,7 +82,7 @@ export default function Home() {
 			} else {
 				week.push(date);
 				if(day >=6) {
-					setActivity(dateID(calendarID, date),activityTypeIcon,'Rabbit');
+					events.push({dateID:dateID(calendarID, date), type:activityTypeIcon, value:'Rabbit'});
 				}
 				date++;
 			}
@@ -90,10 +94,13 @@ export default function Home() {
 			}
 		}
 
-		return {id:calendarID, year:year, month:month, calendar:calendar, ref:createRef(), annotation:[]};
+		return {
+			calendar: {id:calendarID, year:year, month:month, calendar:calendar, ref:createRef(), annotation:[{Rabbit:iconValueDefault['Rabbit']}]},
+			events: events
+		};
 	}
 
-	//其實不需要這個funciton 也會自動按 object key 升冪排列
+	//其實不需要這個 funciton 也會自動按 object key 升冪排列
 	const sortedCalendarList = useMemo(() => {
 		const sorted = Object.values(calendarList).sort((a,b)=>{
 				if(a.id < b.id){
@@ -130,7 +137,7 @@ export default function Home() {
 			});
 		}
 	}
-	const removeCalendar = (calendarID) => {
+	const removeCalendar = async (calendarID) => {
 		setCalendarList(current => {
 			const calendar = {...current};
 			delete calendar[calendarID];
@@ -145,6 +152,7 @@ export default function Home() {
 			}
 		})
 		setAction('removeCalendar');
+		await apiDeleteCalendar(calendarID)
 	}
 	const openSetting = (el, posX, posY, width, height) => {
 		setOverlayActive(true);
@@ -205,7 +213,7 @@ export default function Home() {
 		}
 		dateElement.setAttribute('color',style);
 	}
-	const setActivity = (dateID, type, value) => {
+	const setActivity = async (dateID, type, value) => {
 		setAction('setActivity');
 		//useImmer 的寫法
 		setActivities(draft => {
@@ -241,6 +249,9 @@ export default function Home() {
 
 			return draft;
 		});
+		console.log('event',value)
+		await apiCreateEvents([createActivity(dateID, type, value)]);
+
 		//useState 的寫法
 		/*let obj = {...activities};
 		if(!obj[dateID]){
@@ -251,6 +262,27 @@ export default function Home() {
 		}
 		obj[dateID][type].push(value);
 		setActivities(obj);*/
+	}
+	const setDefaultActivities = async (events) => {
+		const data = [];
+		events.forEach((event) => {
+			setActivity(event.dateID,event.type,event.value);
+			data.push(createActivity(event.dateID, event.type, event.value));
+		})
+		await apiCreateEvents(data);
+	}
+	const createActivity = (dateID, type, value) => {
+		let re = {
+			date_id:dateID, calendar_id:calendarID(dateID), date:getDate(dateID), event_type:type
+		}
+		if(type==activityTypeText) {
+			re['event_text'] = value;
+			re['event_text_style'] = activityTextStyle;
+		}
+		if(type==activityTypeIcon) {
+			re['event_icon'] = value;
+		}
+		return re;
 	}
 	const setVaStyle = (value) => {
 		console.log('功能尚未啟動')
@@ -266,9 +298,8 @@ export default function Home() {
 			});
 		}
 	},[activities]);
-
-	//icon 註解
-	useEffect( ()=>{
+	//icon 註釋
+	useEffect(()=>{
 		const isPush = {};
 		for (const [key, value] of Object.entries(activities)){
 			if(value[activityTypeIcon]){
@@ -328,7 +359,7 @@ export default function Home() {
 		return false;
 	},[catalogExpandList]);
 
-	async function getCalendars() {
+	async function apiGetCalendars() {
 		const apiUrlEndpoint = `/api/calendars/get`;
 		const getData = {
 			method: "GET",
@@ -336,17 +367,72 @@ export default function Home() {
 		}
 		const response = await fetch(apiUrlEndpoint, getData);
 		const res = await response.json();
-		const calList = {}
-		res.forEach((data)=>{
-			const calendar = createCalendar(data.year,data.month);
+		const calList = {}, actList = {}
+		res.calendars.forEach((data) => {
+			const calendar = createCalendar(data.year,data.month).calendar;
 			calList[calendar.id] = calendar;
 		})
-		setCalendarList(calList)
-	}
-	useEffect(()=>{
-		getCalendars();
-	},[]);
+		res.events.forEach((data)=>{
+			if(!actList[data.date_id]){
+				actList[data.date_id] = {};
+			}
+			if(!actList[data.date_id][data.event_type]){
+				if(data.event_type == activityTypeText){
+					actList[data.date_id][data.event_type] = '';
+				}else if(data.event_type == activityTypeIcon){
+					actList[data.date_id][data.event_type] = [];
+				}
+			}
 
+			if(data.event_type == activityTypeText){
+				actList[data.date_id][data.event_type] = data.event_text;
+			}else if(data.event_type == activityTypeIcon){
+				actList[data.date_id][data.event_type].push(data.event_icon);
+			}
+		})
+		setCalendarList(calList);
+		setActivities(actList);
+	}
+	async function apiCreateCalendar(data) {
+		const apiUrlEndpoint = `/api/calendars/create`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				data: data
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
+	async function apiDeleteCalendar(calendarID) {
+		const apiUrlEndpoint = `/api/calendars/delete`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				calendarID: calendarID
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
+	async function apiCreateEvents(data) {
+		const apiUrlEndpoint = `/api/events/create`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				data: data
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
+
+	useEffect(()=>{
+		apiGetCalendars();
+	},[]);
 
 	//測試用
 	useEffect(  ()=>{
