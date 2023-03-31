@@ -25,12 +25,15 @@ export default function Home() {
 	const [isOverlayActive, setOverlayActive] = useState(false);
 	const [myDate, setMyDate] = useState({el:null, posX:0, posY:0, width:0, height:0});
 	const [myDateID, setMyDateID] = useState(null);
+	const theCalendarID = useMemo(()=>{ return myDateID? calendarID(myDateID) : ''},[myDateID]);
+	const theDate = useMemo(()=>{ return myDateID? parseInt(getDate(myDateID)) : ''},[myDateID]);
 	const activityTypeText = 1;
 	const activityTypeIcon = 2;
 	const activityTextStyle = 'blue';
 	const iconValueDefault = {Dragon:'沛辰休假', Dog:'', Bear:'', Rabbit:'莉莉休假'};
 	const [activities, setActivities] = useImmer({});
-	const [vacationStyle, setVacationStyle] = useState(2);
+
+	const [dateStyleList, setDateStyleList] = useState({});
 
 	const [catalogExpandList, setCatalogExpand] = useState({});
 
@@ -64,11 +67,11 @@ export default function Home() {
 			[calendar.id]: calendar
 		});
 		setAction('addCalendar');
+		await apiCreateCalendar({id:calendar.id, year:calendar.year, month:calendar.month, annotation:calendar.annotation});
 		await setDefaultActivities(events);
-		await apiCreateCalendar({id:calendar.id, year:calendar.year, month:calendar.month, annotation:JSON.stringify(calendar.annotation)});
 	}
 	const createCalendar = (year, month) => {
-		const calendarID = year.toString() + (month >=10 ? '' : 0 ) + month.toString();
+		const calendar_id = year.toString() + (month >=10 ? '' : 0 ) + month.toString();
 		const theFirstDayOfThisMonth = new Date(year, month-1, 1).getDay();
 		const lastDateOfSelectedMonth = new Date(year, month, 0).getDate();
 		const calendar = [], events = [];
@@ -81,8 +84,8 @@ export default function Home() {
 				week.push(0);
 			} else {
 				week.push(date);
-				if(day >=6) {
-					events.push({dateID:dateID(calendarID, date), type:activityTypeIcon, value:'Rabbit'});
+				if(day >= 6) {
+					events.push({date_id:dateID(calendar_id, date), calendar_id:calendar_id, date:date, type:activityTypeIcon, value:'Rabbit'});
 				}
 				date++;
 			}
@@ -95,12 +98,12 @@ export default function Home() {
 		}
 
 		return {
-			calendar: {id:calendarID, year:year, month:month, calendar:calendar, ref:createRef(), annotation:[{Rabbit:iconValueDefault['Rabbit']}]},
+			calendar: { id:calendar_id, year:year, month:month, calendar:calendar, ref:createRef(), annotation:[{icon:'Rabbit', value:iconValueDefault['Rabbit']}] },
 			events: events
 		};
 	}
 
-	//其實不需要這個 funciton 也會自動按 object key 升冪排列
+	//其實不需要這個 function 也會自動按 object key 升冪排列
 	const sortedCalendarList = useMemo(() => {
 		const sorted = Object.values(calendarList).sort((a,b)=>{
 				if(a.id < b.id){
@@ -137,22 +140,31 @@ export default function Home() {
 			});
 		}
 	}
-	const removeCalendar = async (calendarID) => {
+	const removeCalendar = async (calendar_id) => {
 		setCalendarList(current => {
 			const calendar = {...current};
-			delete calendar[calendarID];
+			delete calendar[calendar_id];
 
 			return calendar;
 		});
 		setActivities(draft => {
 			for (const [key, value] of Object.entries(draft)) {
-				if((new RegExp(calendarID)).test(key)){
+				if((new RegExp(calendar_id)).test(key)){
 					delete draft[key];
 				}
 			}
 		})
+		setDateStyleList(current => {
+			const dateStyleList = {...current};
+			for (const [key, value] of Object.entries(dateStyleList)) {
+				if((new RegExp(calendar_id)).test(key)){
+					delete dateStyleList[key];
+				}
+			}
+			return dateStyleList;
+		})
 		setAction('removeCalendar');
-		await apiDeleteCalendar(calendarID)
+		await apiDeleteCalendar(calendar_id)
 	}
 	const openSetting = (el, posX, posY, width, height) => {
 		setOverlayActive(true);
@@ -164,13 +176,30 @@ export default function Home() {
 		let bottom = window.innerHeight - 400;
 		let myPosX = myDate.posX, myPosY = myDate.posY + myDate.height + 5 - window.scrollY;
 		if(myPosY > bottom) {
-			myPosY = myDate.posY - 168 - window.scrollY;
+			myPosY = myDate.posY - 142 - window.scrollY;
 		}
 		document.querySelector('.'+styles.modal).setAttribute('style','left:'+myPosX+'px;top:'+myPosY+'px');
 	},[myDate]);
 
 	useEffect(() => {
 		if(!isOverlayActive){
+			if(!myDateID) return;
+
+			if(!activities[theCalendarID][theDate]) return;
+
+			let eventData = {date_id:myDateID, [activityTypeText]:{}, [activityTypeIcon]:{}};
+			if(activities[theCalendarID][theDate][activityTypeText]){
+				eventData[activityTypeText] = createActivity(myDateID, activityTypeText, activities[theCalendarID][theDate][activityTypeText]);
+			}
+			if(activities[theCalendarID][theDate][activityTypeIcon]){
+				eventData[activityTypeIcon] = createActivity(myDateID, activityTypeIcon, activities[theCalendarID][theDate][activityTypeIcon]);
+			}
+			apiUpdateEvents(eventData);
+
+			if(!dateStyleList[theCalendarID]) return;
+			if(!dateStyleList[theCalendarID][theDate]) return;
+			apiUpdateDateStyle(myDateID,dateStyleList[theCalendarID][theDate]);
+
 			setMyDate({el:null, posX:0, posY:0, width:0, height:0});
 			setMyDateID(null);
 		}else{
@@ -195,62 +224,85 @@ export default function Home() {
 	}, [isOverlayActive]);
 
 	const setDateStyle = (style) => {
-		let dateElement = myDate.el.querySelector('.'+styles.date);
-		if(style == 'circle') {
-			if(dateElement.classList.contains(styles.circle)){
-				dateElement.classList.remove(styles.circle);
-			}else{
-				dateElement.classList.add(styles.circle);
-			}
-		}else{
-			dateElement.setAttribute('color',style);
+		let current = {...dateStyleList};
+
+		if(!current[theCalendarID]){
+			current[theCalendarID] = {};
 		}
+		if(!current[theCalendarID][theDate]){
+			current[theCalendarID][theDate] = {};
+		}
+		if(style=='circle'){
+			current[theCalendarID][theDate].circle = !current[theCalendarID][theDate].circle;
+		}else{
+			current[theCalendarID][theDate].color = style;
+		}
+		setDateStyleList(current);
 	}
 	const setActivityStyle = (style) => {
-		let dateElement = myDate.el.querySelector('.'+styles.text);
-		if(!activities[myDateID] || !dateElement){
-			return;
-		}
-		dateElement.setAttribute('color',style);
+		setActivities(draft => {
+			if(!draft[theCalendarID]){
+				draft[theCalendarID] = {};
+			}
+			if(!draft[theCalendarID][theDate]){
+				draft[theCalendarID][theDate] = {};
+			}
+			if(!draft[theCalendarID][theDate][activityTypeText]){
+				draft[theCalendarID][theDate][activityTypeText] = {style:style, text:''};
+			}else{
+				draft[theCalendarID][theDate][activityTypeText].style = style;
+			}
+			return draft;
+		})
 	}
-	const setActivity = async (dateID, type, value) => {
+	const setActivity = (date_id, type, value) => {
 		setAction('setActivity');
 		//useImmer 的寫法
 		setActivities(draft => {
-			if(!draft[dateID]){
-				draft[dateID] = {};
+			if(!draft[theCalendarID]){
+				draft[theCalendarID] = {};
 			}
-			if(!draft[dateID][type]){
+			if(!draft[theCalendarID][theDate]){
+				draft[theCalendarID][theDate] = {};
+			}
+			if(!draft[theCalendarID][theDate][type]){
 				if(type == activityTypeText) {
-					draft[dateID][type] = '';
+					draft[theCalendarID][theDate][type] = {style:activityTextStyle, text:''};
 				}else if(type == activityTypeIcon) {
-					draft[dateID][type] = [];
+					draft[theCalendarID][theDate][type] = [];
 				}
 			}
 
 			if(type == activityTypeText) {
-				draft[dateID][type] = value;
+				draft[theCalendarID][theDate][type].text = value;
 			}else if(type == activityTypeIcon) {
-				let i = draft[dateID][type].indexOf(value);
+				let i = draft[theCalendarID][theDate][type].indexOf(value);
 				if(i>=0){
-					draft[dateID][type].splice(i, 1);
+					draft[theCalendarID][theDate][type].splice(i, 1);
 				}else{
-					draft[dateID][type].push(value);
+					draft[theCalendarID][theDate][type].push(value);
 				}
 			}
 
 			//移除空的 Activity
-			if(draft[dateID][type].length == 0){
-				delete draft[dateID][type];
+			if(type == activityTypeText) {
+				if(draft[theCalendarID][theDate][activityTypeText].text.length == 0){
+					delete draft[theCalendarID][theDate][activityTypeText];
+				}
+			} else if(type == activityTypeIcon) {
+				if(draft[theCalendarID][theDate][activityTypeIcon].length == 0){
+					delete draft[theCalendarID][theDate][activityTypeIcon];
+				}
 			}
-			if(Object.keys(draft[dateID]) == 0){
-				delete draft[dateID];
+			if(Object.keys(draft[theCalendarID][theDate]) == 0){
+				delete draft[theCalendarID][theDate];
+			}
+			if(Object.keys(draft[theCalendarID]) == 0){
+				delete draft[theCalendarID];
 			}
 
 			return draft;
 		});
-		console.log('event',value)
-		await apiCreateEvents([createActivity(dateID, type, value)]);
 
 		//useState 的寫法
 		/*let obj = {...activities};
@@ -264,28 +316,30 @@ export default function Home() {
 		setActivities(obj);*/
 	}
 	const setDefaultActivities = async (events) => {
-		const data = [];
+		const newActivities = {...activities};
+		const apiData = [];
 		events.forEach((event) => {
-			setActivity(event.dateID,event.type,event.value);
-			data.push(createActivity(event.dateID, event.type, event.value));
+			if(!newActivities[event.calendar_id]){
+				newActivities[event.calendar_id] = {};
+			}
+			newActivities[event.calendar_id][event.date] = {[event.type]:[event.value]};
+			apiData.push(createActivity(event.date_id, event.type, event.value));
 		})
-		await apiCreateEvents(data);
+		setActivities(newActivities);
+		await apiCreateEvents(apiData);
 	}
-	const createActivity = (dateID, type, value) => {
+	const createActivity = (date_id, type, value) => {
 		let re = {
-			date_id:dateID, calendar_id:calendarID(dateID), date:getDate(dateID), event_type:type
+			date_id:date_id, calendar_id:calendarID(date_id), date:getDate(date_id), event_type:type
 		}
 		if(type==activityTypeText) {
-			re['event_text'] = value;
-			re['event_text_style'] = activityTextStyle;
+			re['event_text'] = value.text;
+			re['event_text_style'] = value.style;
 		}
 		if(type==activityTypeIcon) {
 			re['event_icon'] = value;
 		}
 		return re;
-	}
-	const setVaStyle = (value) => {
-		console.log('功能尚未啟動')
 	}
 
 	//偵測 td 寬高，調整 madal 位置
@@ -296,35 +350,6 @@ export default function Home() {
 				width:myDate.el.offsetWidth,
 				height:myDate.el.offsetHeight
 			});
-		}
-	},[activities]);
-	//icon 註釋
-	useEffect(()=>{
-		const isPush = {};
-		for (const [key, value] of Object.entries(activities)){
-			if(value[activityTypeIcon]){
-				const myCalendarID = calendarID(key);
-				const newCalendar = {...calendarList};
-
-				if(!newCalendar[myCalendarID]) return;
-
-				if(!isPush[myCalendarID]) {
-					newCalendar[myCalendarID]['annotation'] = [];
-				}
-
-				/*if(newCalendar[myCalendarID]['annotation'].length >= iconType.length) {
-					return;
-				}*/
-
-				value[activityTypeIcon].forEach((icon) => {
-					const myIcon = newCalendar[myCalendarID]['annotation'].find(item => item.icon == icon);
-					if(!myIcon){
-						newCalendar[myCalendarID]['annotation'].push({icon:icon, value:iconValueDefault[icon]});
-					}
-				});
-				setCalendarList(newCalendar);
-				isPush[myCalendarID] = 1;
-			}
 		}
 	},[activities]);
 
@@ -367,31 +392,49 @@ export default function Home() {
 		}
 		const response = await fetch(apiUrlEndpoint, getData);
 		const res = await response.json();
-		const calList = {}, actList = {}
+		const calList = {}, actList = {}, dateStyleList = {}
 		res.calendars.forEach((data) => {
 			const calendar = createCalendar(data.year,data.month).calendar;
+			calendar['annotation'] = data.annotation
 			calList[calendar.id] = calendar;
 		})
-		res.events.forEach((data)=>{
-			if(!actList[data.date_id]){
-				actList[data.date_id] = {};
+		res.events.forEach((data) => {
+			if(!actList[data.calendar_id]){
+				actList[data.calendar_id] = {};
 			}
-			if(!actList[data.date_id][data.event_type]){
+			if(!actList[data.calendar_id][data.date]){
+				actList[data.calendar_id][data.date] = {};
+			}
+			if(!actList[data.calendar_id][data.date][data.event_type]){
 				if(data.event_type == activityTypeText){
-					actList[data.date_id][data.event_type] = '';
+					actList[data.calendar_id][data.date][data.event_type] = {style:activityTextStyle, text:''};
 				}else if(data.event_type == activityTypeIcon){
-					actList[data.date_id][data.event_type] = [];
+					actList[data.calendar_id][data.date][data.event_type] = [];
 				}
 			}
 
 			if(data.event_type == activityTypeText){
-				actList[data.date_id][data.event_type] = data.event_text;
+				if(data.event_text){
+					actList[data.calendar_id][data.date][data.event_type].text = data.event_text;
+				}
+				if(data.event_text_style){
+					actList[data.calendar_id][data.date][data.event_type].style = data.event_text_style;
+				}
 			}else if(data.event_type == activityTypeIcon){
-				actList[data.date_id][data.event_type].push(data.event_icon);
+				actList[data.calendar_id][data.date][data.event_type] = data.event_text.split(',');
 			}
+		})
+		res.date_style_list.forEach((data) => {
+			const calendar_id = calendarID(data.date_id.toString());
+			const date = parseInt(getDate(data.date_id.toString()));
+			if(!dateStyleList[calendar_id]){
+				dateStyleList[calendar_id] = {};
+			}
+			dateStyleList[calendar_id][date] = data.style;
 		})
 		setCalendarList(calList);
 		setActivities(actList);
+		setDateStyleList(dateStyleList);
 	}
 	async function apiCreateCalendar(data) {
 		const apiUrlEndpoint = `/api/calendars/create`;
@@ -405,13 +448,13 @@ export default function Home() {
 		const response = await fetch(apiUrlEndpoint, getData);
 		const res = await response.json();
 	}
-	async function apiDeleteCalendar(calendarID) {
+	async function apiDeleteCalendar(calendar_id) {
 		const apiUrlEndpoint = `/api/calendars/delete`;
 		const getData = {
 			method: "POST",
 			header: { "Content-Type": "application/json" },
 			body: JSON.stringify({
-				calendarID: calendarID
+				calendar_id: calendar_id
 			})
 		}
 		const response = await fetch(apiUrlEndpoint, getData);
@@ -429,6 +472,31 @@ export default function Home() {
 		const response = await fetch(apiUrlEndpoint, getData);
 		const res = await response.json();
 	}
+	async function apiUpdateEvents(data) {
+		const apiUrlEndpoint = `/api/events/update`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				data: data
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
+	async function apiUpdateDateStyle(date_id,date_style) {
+		const apiUrlEndpoint = `/api/date_style/update`;
+		const getData = {
+			method: "POST",
+			header: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				date_id: date_id,
+				date_style: date_style
+			})
+		}
+		const response = await fetch(apiUrlEndpoint, getData);
+		const res = await response.json();
+	}
 
 	useEffect(()=>{
 		apiGetCalendars();
@@ -439,7 +507,8 @@ export default function Home() {
 		//console.log('calendarList',calendarList)
 		//console.log('activities',activities)
 		//console.log('catalog',catalogCalendarList)
-	},[calendarList]);
+		//console.log('dateStyleList',dateStyleList)
+	},[dateStyleList]);
 
 	return (
 		<div className={styles.container}>
@@ -479,11 +548,13 @@ export default function Home() {
 						return(
 							<Calendar key={i}
 							          calendar={calendar}
-							          activities={activities}
+									  //dateStyleList={dateStyleList[calendar.id]?? {}}
+									  dateStyleLists={dateStyleList}
+							          activities={activities[calendar.id]?? {}}
 							          activityType={{text:activityTypeText, icon:activityTypeIcon}}
-							          removeCalendar={removeCalendar}
+									  iconValueDefault={iconValueDefault}
+									  removeCalendar={removeCalendar}
 							          openSetting={openSetting}
-							          vaStyle={vacationStyle}
 							/>
 						);
 					})
@@ -506,7 +577,8 @@ export default function Home() {
 						</div>
 						<div className={`${styles.formData}`}>
 							<label>事件</label>
-							<input type="text" onChange={(e) => setActivity(myDateID,activityTypeText,e.target.value)} value={activities[myDateID]? activities[myDateID][activityTypeText]?? '' : ''} />
+							<input type="text" onChange={(e) => setActivity(myDateID,activityTypeText,e.target.value)}
+								   value={activities[theCalendarID]? (activities[theCalendarID][theDate]? (activities[theCalendarID][theDate][activityTypeText]? activities[theCalendarID][theDate][activityTypeText].text: '') : '') : ''} />
 						</div>
 						<div className={`${styles.formData}`}>
 							<label>事件 icon</label>
@@ -515,7 +587,7 @@ export default function Home() {
 							<div className={`${styles.activityIcon}`} onClick={(e) => setActivity(myDateID,activityTypeIcon,'Bear')}>🐻</div>
 							<div className={`${styles.activityIcon}`} onClick={(e) => setActivity(myDateID,activityTypeIcon,'Rabbit')}>🐰</div>
 						</div>
-						<div className={`${styles.formData} ${styles.borderBottom}`}>
+						<div className={`${styles.formData}`}>
 							<label>事件顏色</label>
 							<div className={styles.color}>
 								<div className={`${styles.colorBlock} ${styles.yellow}`} onClick={()=>setActivityStyle('yellow')}></div>
@@ -524,15 +596,6 @@ export default function Home() {
 								<div className={`${styles.colorBlock} ${styles.purple}`} onClick={()=>setActivityStyle('purple')}></div>
 								<div className={`${styles.colorBlock} ${styles.red2}`} onClick={()=>setActivityStyle('red2')}></div>
 								<div className={`${styles.colorBlock} ${styles.black}`} onClick={()=>setActivityStyle('black')}></div>
-							</div>
-						</div>
-						<div className={`${styles.formData} mgBottom-5`}>
-							<label>休假樣式</label>
-							<div className={styles.radioGroup}>
-								<input type="radio" onChange={() => setVaStyle(1)} checked={vacationStyle==1} /> <span className={'textRed' + ' fontSize14'}>休假</span>
-							</div>
-							<div className={styles.radioGroup}>
-								<input type="radio" onChange={() => setVaStyle(2)} checked={vacationStyle==2} /> <span className={'fontSize22'}>🐰</span>
 							</div>
 						</div>
 					</div>

@@ -1,44 +1,94 @@
 import styles from "../../styles/Home.module.scss";
 import {textConvert, dateID} from "../tools/myFunction";
-import {useMemo} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faCalendarXmark} from '@fortawesome/free-solid-svg-icons';
 
-export default function calendar({calendar, activities, activityType, removeCalendar, openSetting, vaStyle}) {
+export default function calendar({calendar, dateStyleLists, activities, activityType, iconValueDefault, removeCalendar, openSetting}) {
+	//不知道為什麼帶入 dateStyleLists[calendar.id] 在 useEffect 沒反應...？
+	const dateStyleList = dateStyleLists[calendar.id];
 	const setting = (e) => {
 		let tdElement = e.target.closest('.'+styles.item);
 		tdElement.classList.add(styles.active);
 		openSetting(tdElement, tdElement.offsetLeft, tdElement.offsetTop, tdElement.offsetWidth, tdElement.offsetHeight);
 	}
 
-	const setAnnotation = async (icon, value) => {
-		await apiUpdateCalendar({id:calendar.id, annotation:{icon:icon, value:value}})
+	//icon 註釋
+	const [annotation, setAnnotation] = useState(calendar.annotation);
+	useEffect(() => {
+		const newAnnotation = [];
+		if(Object.keys(activities).length > 0) {
+			for (const [date, value] of Object.entries(activities)){
+				if(value[activityType.icon]){
+					value[activityType.icon].forEach((icon) => {
+						const myIcon = annotation.find(item => item.icon == icon);
+						if(myIcon){
+							if(!newAnnotation.find(item => item.icon == icon)){
+								newAnnotation.push(myIcon);
+							}
+						}else{
+							newAnnotation.push({icon:icon, value:iconValueDefault[icon]});
+						}
+					});
+				}
+				if(newAnnotation.length >= Object.keys(iconValueDefault).length) return;
+			}
+
+		}
+
+		if(Object.keys(dateStyleLists[calendar.id]).length > 0){
+			for (const [date, value] of Object.entries(dateStyleLists[calendar.id])){
+				if(value.circle){
+					newAnnotation.push({icon:'circle', value:''});
+					break;
+				}
+			}
+		}
+
+		setAnnotation(newAnnotation);
+		apiUpdateCalendar(calendar.id, newAnnotation);
+
+	},[activities, dateStyleLists]);
+
+	const updatingAnnotation = async (updating, el) => {
+		const targetParent = el.closest('li');
+		if(updating) {
+			const focusEl = targetParent.querySelector('.' + styles.clickInsert + ' input');
+			focusEl.style.display = 'initial';
+			focusEl.focus();
+			el.closest('.' + styles.word).style.display = 'none';
+		}else{
+			const wordEl = targetParent.querySelector('.' + styles.word)
+			wordEl.style.display = 'initial'
+			el.closest('.' + styles.clickInsert + ' input').style.display = 'none';
+			await apiUpdateCalendar(calendar.id, annotation);
+		}
 	}
 
-	const apiUpdateCalendar = async (data) => {
+	const onChangeAnnotation = async (icon, el) => {
+		let resize = (el.value.length + 1.5) * 10;
+	    el.style.width = (resize < 100 ? (resize > 50 ? resize : 50) : 100 ) + 'px';
+
+		const myAnnotation = [...annotation];
+		const myIcon = myAnnotation.find(item => item.icon == icon);
+		myIcon.value = el.value;
+		setAnnotation(myAnnotation);
+	}
+
+	const apiUpdateCalendar = async (calendarID, annotation) => {
 		const apiUrlEndpoint = `/api/calendars/update`;
 		const getData = {
 			method: "POST",
 			header: { "Content-Type": "application/json" },
 			body: JSON.stringify({
-				data: data
+				calendarID: calendarID,
+				annotation: annotation
 			})
 		}
 		const response = await fetch(apiUrlEndpoint, getData);
 		const res = await response.json();
 	}
 
-	const myVaStyle = useMemo(() => {
-		if(vaStyle == 1){
-			return {
-				className: 'Vacation',
-			}
-		}else if(vaStyle == 2){
-			return {
-				className: 'Rabbit',
-			}
-		}
-	},[vaStyle]);
 	return (
 		<div className={styles.calendar} ref={calendar.ref}>
 			<div className={styles.head}>
@@ -65,21 +115,22 @@ export default function calendar({calendar, activities, activityType, removeCale
 								{
 									week.map((date, d) => {
 										let myDateID = dateID(calendar.id, date);
-										//let activity = d >= 5 && date > 0 ? (activities[myDateID] ? activities[myDateID] : myVaStyle.className ) : (activities[myDateID] ? activities[myDateID] : '');
 										return (
 											<td className={styles.item} key={d} dateid={myDateID}
 											    onClick={ date > 0 ? (e) => setting(e) : () => { return; } } >
-												{date > 0 ? <label className={`${styles.date}`} color={d>=5?'red':''}>{date}</label> : ''}
-												{activities[myDateID]? (activities[myDateID][activityType.icon]? <div className={`${styles.icon}`}>
+												{date > 0 ? <label className={`${styles.date} ${dateStyleList[date]? (dateStyleList[date].circle? styles.circle : '') : ''}`}
+																   color={dateStyleList[date]? (dateStyleList[date].color?? (d>=5?'red':'')) : (d>=5?'red':'')}
+												>{date}</label> : ''}
+												{activities[date]? (activities[date][activityType.icon]? <div className={`${styles.icon}`}>
 													{
-														activities[myDateID][activityType.icon].map((icon,i)=>{
+														activities[date][activityType.icon].map((icon,i)=>{
 															return (
 																<span key={i} icon={icon}></span>
 															)
 														})
 													}
 												</div> : '') : ''}
-												{activities[myDateID]? (activities[myDateID][activityType.text]? <div className={`${styles.text}`} color='blue'>{activities[myDateID][activityType.text]}</div> : '') : ''}
+												{activities[date]? (activities[date][activityType.text]? <div className={`${styles.text}`} color={activities[date][activityType.text].style}>{activities[date][activityType.text].text}</div> : '') : ''}
 											</td>
 										)
 									})
@@ -92,18 +143,20 @@ export default function calendar({calendar, activities, activityType, removeCale
 			</table>
 			<ul className={styles.annotation}>
 				{
-					calendar.annotation.map((icon,i) => {
+					annotation.map((icon,i) => {
 						return(
-							<li key={i} icon={icon.icon}>{
-								icon.value==''?
-									<span className={styles.clickInsert}>
-										<input type="text" placeholder="點擊輸入" onChange={(e) => {
-											let resize = (e.target.value.length + 1.5) * 10;
-											e.target.style.width = (resize < 100 ? (resize > 50 ? resize : 50) : 100 ) + 'px';
-											setAnnotation(icon.icon, e.target.value);
-										}}/>
-									</span> : <span className={styles.word}>{icon.value}</span>
-							}</li>
+							<li key={i} icon={icon.icon}>
+								<span className={styles.clickInsert}>
+									<input type="text" style={{display:'none', width:(icon.value.length + 1.5) * 10}}
+										   onChange={(e) => onChangeAnnotation(icon.icon, e.target)}
+										   onBlur={(e) => updatingAnnotation(false,e.target)}
+										   value={icon.value} />
+								</span>
+								<span className={styles.word}
+									  onClick={(e) => updatingAnnotation(true,e.target)}>
+									  {icon.value.length > 0 ? icon.value : <span style={{color:'grey'}}>點擊輸入</span>}
+								</span>
+							</li>
 						);
 					})
 				}
