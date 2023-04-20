@@ -2,7 +2,7 @@
   min-height: 100vh;
 }
 
-.addCalendar {
+.topColumn {
 	position: fixed;
 	top: 0;
 	width: 100%;
@@ -29,6 +29,14 @@
 		align-items: center;
 		font-size: 18px;
 		padding: 4px 7px;
+	}
+	.searchBtn {
+		background: #3e6b7e;
+		color: white;
+		display: flex;
+		align-items: center;
+		font-size: 18px;
+		padding: 5.28px 12.76px;
 	}
 }
 
@@ -180,6 +188,9 @@
 		}
 		[icon=Bear]:before {
 			content: "🐻"
+		}
+		[icon=circle]:before {
+			content: "⭕️";
 		}
 		[icon=Vacation]:before {
 			content: "休假";

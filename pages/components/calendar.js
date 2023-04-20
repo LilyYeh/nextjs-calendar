@@ -6,7 +6,7 @@ import {faCalendarXmark} from '@fortawesome/free-solid-svg-icons';
 
 export default function calendar({calendar, dateStyleLists, activities, activityType, iconValueDefault, removeCalendar, openSetting}) {
 	//不知道為什麼帶入 dateStyleLists[calendar.id] 在 useEffect 沒反應...？
-	const dateStyleList = dateStyleLists[calendar.id];
+	const dateStyleList = dateStyleLists[calendar.id]?? {};
 	const setting = (e) => {
 		let tdElement = e.target.closest('.'+styles.item);
 		tdElement.classList.add(styles.active);
@@ -14,40 +14,41 @@ export default function calendar({calendar, dateStyleLists, activities, activity
 	}
 
 	//icon 註釋
-	const [annotation, setAnnotation] = useState(calendar.annotation);
+	const [annotation, setAnnotation] = useState([]);
 	useEffect(() => {
 		const newAnnotation = [];
 		if(Object.keys(activities).length > 0) {
 			for (const [date, value] of Object.entries(activities)){
 				if(value[activityType.icon]){
 					value[activityType.icon].forEach((icon) => {
-						const myIcon = annotation.find(item => item.icon == icon);
+						const myIcon = calendar.annotation.find(item => item.icon == icon);
+						const myNewIcon = newAnnotation.find(item => item.icon == icon);
 						if(myIcon){
-							if(!newAnnotation.find(item => item.icon == icon)){
-								newAnnotation.push(myIcon);
-							}
-						}else{
+							if(!myNewIcon) newAnnotation.push(myIcon);
+						}else if(!myIcon && !myNewIcon){
 							newAnnotation.push({icon:icon, value:iconValueDefault[icon]});
 						}
 					});
 				}
-				if(newAnnotation.length >= Object.keys(iconValueDefault).length) return;
+				if(newAnnotation.length >= Object.keys(iconValueDefault).length) break;
 			}
-
 		}
 
-		if(Object.keys(dateStyleLists[calendar.id]).length > 0){
-			for (const [date, value] of Object.entries(dateStyleLists[calendar.id])){
+		if(Object.keys(dateStyleList).length > 0){
+			for (const [date, value] of Object.entries(dateStyleList)){
 				if(value.circle){
-					newAnnotation.push({icon:'circle', value:''});
+					const circleAnno = calendar.annotation.find(item => item.icon == 'circle' && item.value !== '');
+					const myNewIcon = newAnnotation.find(item => item.icon == 'circle' && item.value !== '');
+					if(circleAnno){
+						if(!myNewIcon) newAnnotation.push({icon:'circle', value:circleAnno.value});
+					}else if(!circleAnno && !myNewIcon){
+						newAnnotation.push({icon:'circle', value:''});
+					}
 					break;
 				}
 			}
 		}
-
 		setAnnotation(newAnnotation);
-		apiUpdateCalendar(calendar.id, newAnnotation);
-
 	},[activities, dateStyleLists]);
 
 	const updatingAnnotation = async (updating, el) => {
@@ -144,10 +145,11 @@ export default function calendar({calendar, dateStyleLists, activities, activity
 			<ul className={styles.annotation}>
 				{
 					annotation.map((icon,i) => {
+						const inputWidth = (icon.value.length + 1.5) * 10;
 						return(
 							<li key={i} icon={icon.icon}>
 								<span className={styles.clickInsert}>
-									<input type="text" style={{display:'none', width:(icon.value.length + 1.5) * 10}}
+									<input type="text" style={{display:'none', width:(inputWidth > 50 ? (inputWidth > 100 ? 100 : inputWidth) : 50)}}
 										   onChange={(e) => onChangeAnnotation(icon.icon, e.target)}
 										   onBlur={(e) => updatingAnnotation(false,e.target)}
 										   value={icon.value} />

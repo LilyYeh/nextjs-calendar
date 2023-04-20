@@ -5,7 +5,7 @@ import {useImmer} from 'use-immer';
 import {textConvert, dateID, calendarID, getDate} from "./tools/myFunction";
 import Calendar from "./components/calendar";
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faCalendarDays, faCalendar, faPlusSquare} from '@fortawesome/free-solid-svg-icons';
+import {faCalendarDays, faCalendar, faPlusSquare, faSearch} from '@fortawesome/free-solid-svg-icons';
 import {faMinusSquare} from '@fortawesome/free-regular-svg-icons';
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
 	const lastDateOfThisMonth = (new Date(yearToday, monthToday, 0)).getDate();
 	const [selectedYear, setSelectedYear] = useState(yearToday);
 	const [selectedMonth, setSelectedMonth] = useState(monthToday);
-	const newCalendarID = useMemo(() => { return selectedYear.toString() + (selectedMonth >=10 ? '' : 0 ) + selectedMonth.toString() },[selectedYear, selectedMonth]);
+	const selectCalendarID = useMemo(() => { return selectedYear.toString() + (selectedMonth >=10 ? '' : 0 ) + selectedMonth.toString() },[selectedYear, selectedMonth]);
 
 	//addCalendar, removeCalendar
 	const [action, setAction] = useState(null);
@@ -35,7 +35,7 @@ export default function Home() {
 
 	const [dateStyleList, setDateStyleList] = useState({});
 
-	const [catalogExpandList, setCatalogExpand] = useState({});
+	const [catalogCollapseList, setCatalogCollapse] = useState({});
 
 	const setDatePicker = () => {
 		const yearOptions = [];
@@ -55,9 +55,9 @@ export default function Home() {
 	const datePicker = useMemo(setDatePicker,[]);
 
 	const addCalendar = async () => {
-		if(calendarList[newCalendarID]) {
+		if(calendarList[selectCalendarID]) {
 			//scroll to calendar
-			scrollToCalendar(calendarList[newCalendarID].ref);
+			scrollToCalendar(calendarList[selectCalendarID].ref);
 			return;
 		}
 		const calendarData = createCalendar(selectedYear,selectedMonth);
@@ -125,8 +125,8 @@ export default function Home() {
 		return catalog;
 	},[calendarList]);
 	useEffect(() => {
-		if(action=='addCalendar' && calendarList[newCalendarID]){
-			scrollToCalendar(calendarList[newCalendarID].ref);
+		if(action=='addCalendar' && calendarList[selectCalendarID]){
+			scrollToCalendar(calendarList[selectCalendarID].ref);
 		}
 	},[calendarList]);
 	//scroll to new calendar
@@ -185,20 +185,22 @@ export default function Home() {
 		if(!isOverlayActive){
 			if(!myDateID) return;
 
-			if(!activities[theCalendarID][theDate]) return;
-
 			let eventData = {date_id:myDateID, [activityTypeText]:{}, [activityTypeIcon]:{}};
-			if(activities[theCalendarID][theDate][activityTypeText]){
-				eventData[activityTypeText] = createActivity(myDateID, activityTypeText, activities[theCalendarID][theDate][activityTypeText]);
-			}
-			if(activities[theCalendarID][theDate][activityTypeIcon]){
-				eventData[activityTypeIcon] = createActivity(myDateID, activityTypeIcon, activities[theCalendarID][theDate][activityTypeIcon]);
+			if(activities[theCalendarID][theDate]){
+				if(activities[theCalendarID][theDate][activityTypeText]){
+					eventData[activityTypeText] = createActivity(myDateID, activityTypeText, activities[theCalendarID][theDate][activityTypeText]);
+				}
+				if(activities[theCalendarID][theDate][activityTypeIcon]){
+					eventData[activityTypeIcon] = createActivity(myDateID, activityTypeIcon, activities[theCalendarID][theDate][activityTypeIcon]);
+				}
 			}
 			apiUpdateEvents(eventData);
 
-			if(!dateStyleList[theCalendarID]) return;
-			if(!dateStyleList[theCalendarID][theDate]) return;
-			apiUpdateDateStyle(myDateID,dateStyleList[theCalendarID][theDate]);
+			if(dateStyleList[theCalendarID]){
+				if(dateStyleList[theCalendarID][theDate]){
+					apiUpdateDateStyle(myDateID,dateStyleList[theCalendarID][theDate]);
+				}
+			}
 
 			setMyDate({el:null, posX:0, posY:0, width:0, height:0});
 			setMyDateID(null);
@@ -353,8 +355,8 @@ export default function Home() {
 		}
 	},[activities]);
 
-	const expand = (year) => {
-		setCatalogExpand(current => {
+	const expandOrCollapse = (year) => {
+		setCatalogCollapse(current => {
 			const newList = {...current};
 			if(newList[year]){
 				delete newList[year];
@@ -365,27 +367,39 @@ export default function Home() {
 		});
 	}
 	const collapseAll = () => {
-		setCatalogExpand(current => {
+		setCatalogCollapse(current => {
 			let newList = {...current};
-			if(Object.keys(newList).length == 0){
+			if(Object.keys(catalogCalendarList).length == Object.keys(catalogCollapseList).length){  // 已經全部關起來
+				newList = {};
+			}else {
 				Object.keys(catalogCalendarList).forEach((year)=>{
 					newList[year] = 1
 				})
-			}else {
-				newList = {};
 			}
 			return newList;
 		})
 	}
 	const isAllCollapse = useMemo(() => {
-		if(Object.keys(catalogExpandList).length == 0){
+		if(Object.keys(catalogCalendarList).length == Object.keys(catalogCollapseList).length){
 			return true;
 		}
 		return false;
-	},[catalogExpandList]);
+	},[catalogCalendarList,catalogCollapseList]);
 
-	async function apiGetCalendars() {
-		const apiUrlEndpoint = `/api/calendars/get`;
+	useEffect(() => {
+		const newList = {...catalogCollapseList};
+		Object.keys(newList).forEach((year)=>{
+			if(!catalogCalendarList[year]) delete newList[year];
+		})
+		setCatalogCollapse(newList);
+	},[catalogCalendarList])
+	
+	const searchCalendar = async () => {
+		await apiGetCalendars(selectCalendarID)
+	}
+
+	async function apiGetCalendars(calendar_id) {
+		const apiUrlEndpoint = `/api/calendars/get?calendar_id=${calendar_id}`;
 		const getData = {
 			method: "GET",
 			header: { "Content-Type": "application/json" }
@@ -499,7 +513,7 @@ export default function Home() {
 	}
 
 	useEffect(()=>{
-		apiGetCalendars();
+		apiGetCalendars(selectCalendarID);
 	},[]);
 
 	//測試用
@@ -517,7 +531,7 @@ export default function Home() {
 				<link rel="icon" href="/favicon.ico" />
 			</Head>
 
-			<div className={styles.addCalendar}>
+			<div className={styles.topColumn}>
 				<div className={styles.formData}>
 					<select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
 						{datePicker.yearOptions.map((year) => {
@@ -540,6 +554,9 @@ export default function Home() {
 				</div>
 				<div className={styles.formData}>
 					<button className={styles.addBtn} onClick={addCalendar}>+<FontAwesomeIcon icon={faCalendarDays} /></button>
+				</div>
+				<div className={styles.formData}>
+					<button className={styles.searchBtn} onClick={searchCalendar}><FontAwesomeIcon icon={faSearch} /></button>
 				</div>
 			</div>
 			<div className={styles.calendarContainer}>
@@ -611,12 +628,12 @@ export default function Home() {
 						Object.keys(catalogCalendarList).map((year) => {
 							return (
 								<li key={year} id={`catalog-${year}`}>
-									<h3 onClick={(e)=>{expand(year)}}>
-										<FontAwesomeIcon icon={faMinusSquare} className={`${styles.iconCollapse} ${catalogExpandList[year]? styles.active : ''}`} />
-										<FontAwesomeIcon icon={faPlusSquare} className={`${styles.iconExpand} ${catalogExpandList[year]? '' : styles.active}`} />
+									<h3 onClick={(e)=>{expandOrCollapse(year)}}>
+										<FontAwesomeIcon icon={faMinusSquare} className={`${styles.iconCollapse} ${catalogCollapseList[year]? '' : styles.active}`} />
+										<FontAwesomeIcon icon={faPlusSquare} className={`${styles.iconExpand} ${catalogCollapseList[year]? styles.active : ''}`} />
 										{year}年
 									</h3>
-									<ul className={`${styles.month} ${catalogExpandList[year]? styles.active : ''}`}>
+									<ul className={`${styles.month} ${catalogCollapseList[year]? '' : styles.active}`}>
 										{
 											catalogCalendarList[year].map((calendar) => {
 												return (
