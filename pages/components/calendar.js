@@ -1,12 +1,14 @@
 import styles from "../../styles/Home.module.scss";
 import {textConvert, dateID} from "../tools/myFunction";
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useState, useRef} from "react";
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faCalendarXmark} from '@fortawesome/free-solid-svg-icons';
 
-export default function calendar({calendar, dateStyleLists, activities, activityType, iconValueDefault, removeCalendar, openSetting}) {
+export default function calendar({calendar, dateStyleList, activities, activityType, iconValueDefault, removeCalendar, openSetting}) {
 	//不知道為什麼帶入 dateStyleLists[calendar.id] 在 useEffect 沒反應...？
-	const dateStyleList = dateStyleLists[calendar.id]?? {};
+	//const dateStyleList = dateStyleLists[calendar.id]?? {}
+	const [annotation, setAnnotation] = useState(calendar.annotation);
+
 	const setting = (e) => {
 		let tdElement = e.target.closest('.'+styles.item);
 		tdElement.classList.add(styles.active);
@@ -14,42 +16,48 @@ export default function calendar({calendar, dateStyleLists, activities, activity
 	}
 
 	//icon 註釋
-	const [annotation, setAnnotation] = useState([]);
 	useEffect(() => {
+		// add new annotation
 		const newAnnotation = [];
-		if(Object.keys(activities).length > 0) {
-			for (const [date, value] of Object.entries(activities)){
-				if(value[activityType.icon]){
-					value[activityType.icon].forEach((icon) => {
-						const myIcon = calendar.annotation.find(item => item.icon == icon);
-						const myNewIcon = newAnnotation.find(item => item.icon == icon);
-						if(myIcon){
-							if(!myNewIcon) newAnnotation.push(myIcon);
-						}else if(!myIcon && !myNewIcon){
-							newAnnotation.push({icon:icon, value:iconValueDefault[icon]});
-						}
-					});
-				}
-				if(newAnnotation.length >= Object.keys(iconValueDefault).length) break;
+		for (const [date, value] of Object.entries(activities)) {
+			if (value[activityType.icon]) {
+				value[activityType.icon].forEach ((icon) => {
+					if(!newAnnotation.includes(icon)) {
+						newAnnotation.push(icon);
+					}
+				});
+			}
+			if (newAnnotation.length >= Object.keys(iconValueDefault).length) break;
+		}
+		for (const [date, value] of Object.entries(dateStyleList)){
+			if(value.circle){
+				newAnnotation.push('circle');
+				break;
 			}
 		}
 
-		if(Object.keys(dateStyleList).length > 0){
-			for (const [date, value] of Object.entries(dateStyleList)){
-				if(value.circle){
-					const circleAnno = calendar.annotation.find(item => item.icon == 'circle' && item.value !== '');
-					const myNewIcon = newAnnotation.find(item => item.icon == 'circle' && item.value !== '');
-					if(circleAnno){
-						if(!myNewIcon) newAnnotation.push({icon:'circle', value:circleAnno.value});
-					}else if(!circleAnno && !myNewIcon){
-						newAnnotation.push({icon:'circle', value:''});
-					}
-					break;
-				}
+		newAnnotation.forEach ((icon) => {
+			const myIcon = annotation.find(item => item.icon == icon);
+			if (!myIcon) {
+				setAnnotation([
+					...annotation,
+					{icon:icon, value:''}
+				]);
 			}
-		}
-		setAnnotation(newAnnotation);
-	},[activities, dateStyleLists]);
+		})
+
+		// remove useless annotation (不需要 set setAnnotation?)
+		setAnnotation(current => {
+			const a = [...current];
+			a.forEach ((item, index, object) => {
+				if (!newAnnotation.includes(item.icon)) {
+					object.splice(index, 1);
+				}
+			})
+			return a;
+		})
+		/*apiUpdateCalendar(calendar.id, annotation);*/
+	},[activities]);
 
 	const updatingAnnotation = async (updating, el) => {
 		const targetParent = el.closest('li');
