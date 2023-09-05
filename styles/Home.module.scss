@@ -238,7 +238,7 @@
 		.formData {
 			display: flex;
 			align-items: center;
-			margin-bottom: 5px;
+			margin-bottom: 8px;
 			&.borderBottom {
 				padding-bottom: 5px;
 				border-bottom: 1px solid #c6c6c6;
@@ -291,6 +291,15 @@
 				margin-left: 3px;
 				font-size: 22px;
 				cursor: pointer;
+				width: 28px;
+				height: 28px;
+				border-radius: 50%;
+				overflow: hidden;
+				&[icon=Lily] > img {
+					width: 100%;
+					height: 100%;
+					object-fit: cover;
+				}
 			}
 			.radioGroup {
 				display: flex;

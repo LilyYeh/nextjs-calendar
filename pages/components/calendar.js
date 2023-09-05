@@ -4,9 +4,7 @@ import {useEffect, useState, useRef} from "react";
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faCalendarXmark} from '@fortawesome/free-solid-svg-icons';
 
-export default function calendar({calendar, dateStyleList, activities, activityType, iconValueDefault, removeCalendar, openSetting}) {
-	//不知道為什麼帶入 dateStyleLists[calendar.id] 在 useEffect 沒反應...？
-	//const dateStyleList = dateStyleLists[calendar.id]?? {}
+export default function calendar({calendar, dateStyleList, activities, activityType, removeCalendar, openSetting}) {
 	const [annotation, setAnnotation] = useState(calendar.annotation);
 
 	const setting = (e) => {
@@ -14,50 +12,6 @@ export default function calendar({calendar, dateStyleList, activities, activityT
 		tdElement.classList.add(styles.active);
 		openSetting(tdElement, tdElement.offsetLeft, tdElement.offsetTop, tdElement.offsetWidth, tdElement.offsetHeight);
 	}
-
-	//icon 註釋
-	useEffect(() => {
-		// add new annotation
-		const newAnnotation = [];
-		for (const [date, value] of Object.entries(activities)) {
-			if (value[activityType.icon]) {
-				value[activityType.icon].forEach ((icon) => {
-					if(!newAnnotation.includes(icon)) {
-						newAnnotation.push(icon);
-					}
-				});
-			}
-			if (newAnnotation.length >= Object.keys(iconValueDefault).length) break;
-		}
-		for (const [date, value] of Object.entries(dateStyleList)){
-			if(value.circle){
-				newAnnotation.push('circle');
-				break;
-			}
-		}
-
-		newAnnotation.forEach ((icon) => {
-			const myIcon = annotation.find(item => item.icon == icon);
-			if (!myIcon) {
-				setAnnotation([
-					...annotation,
-					{icon:icon, value:''}
-				]);
-			}
-		})
-
-		// remove useless annotation (不需要 set setAnnotation?)
-		setAnnotation(current => {
-			const a = [...current];
-			a.forEach ((item, index, object) => {
-				if (!newAnnotation.includes(item.icon)) {
-					object.splice(index, 1);
-				}
-			})
-			return a;
-		})
-		/*apiUpdateCalendar(calendar.id, annotation);*/
-	},[activities]);
 
 	const updatingAnnotation = async (updating, el) => {
 		const targetParent = el.closest('li');
@@ -78,7 +32,7 @@ export default function calendar({calendar, dateStyleList, activities, activityT
 		let resize = (el.value.length + 1.5) * 10;
 	    el.style.width = (resize < 100 ? (resize > 50 ? resize : 50) : 100 ) + 'px';
 
-		const myAnnotation = [...annotation];
+		const myAnnotation = [...calendar.annotation];
 		const myIcon = myAnnotation.find(item => item.icon == icon);
 		myIcon.value = el.value;
 		setAnnotation(myAnnotation);
@@ -152,7 +106,7 @@ export default function calendar({calendar, dateStyleList, activities, activityT
 			</table>
 			<ul className={styles.annotation}>
 				{
-					annotation.map((icon,i) => {
+					calendar.annotation.map((icon,i) => {
 						const inputWidth = (icon.value.length + 1.5) * 10;
 						return(
 							<li key={i} icon={icon.icon}>
